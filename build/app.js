@@ -5,22 +5,32 @@ var
   fn = require('./fn.js')
 ;
 
+// Validations
+fn.validatePackages(config.objects.packages);
+
 
 // Generate Data
 fn.generateDataOosUtilValues();
 
 
+// Create Synonyms Script
+fn.createSynonymScript(config);
+fn.createGrantScript(config);
+
 
 
 // Clear files
 for (file in config.files){
-  fs.writeFileSync(path.resolve(__dirname,config.files[file]), '');
+  if (file !== 'createSynonyms' && file !== 'createGrants'){
+    fn.writeFile(config.files[file], '');
+  }
 }
 
 
 console.log('*** Generating Install File ***');
 
-fn.appendFile(config.files.install,'prompt *** OOS_UTILS ***\n\n\n');
+fn.appendFile(config.files.install,'-- DO NOT MODIFY THIS FILE. IT IS AUTO GENERATED\n');
+fn.appendFile(config.files.install,'prompt *** OOS_UTILS ***\n\n');
 
 fn.appendFile(config.files.install,'prompt *** Prereqs OOS_UTILS ***\n');
 for (script in config.preInstall){
@@ -50,7 +60,11 @@ for (script in config.postInstall){
 }//config.objects.postInstall
 
 
-
+fn.appendFile(config.files.install,'\n\nprompt *** Data ***\n');
+for (myData in config.objects.data){
+  fn.appendFile(config.files.install,'prompt ' + myData);
+  fn.appendFile(files.install, fn.readFile(config.objects.data[myData].src));
+}
 
 
 console.log('*** Generating Uninstall File ***');

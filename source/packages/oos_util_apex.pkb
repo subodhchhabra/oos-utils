@@ -1,109 +1,26 @@
 create or replace package body oos_util_apex
 as
 
-  -- CONSTANTS
-
-
-  /**
-   * Download file
-   *
-   * Notes:
-   *  -
-   *
-   * Related Tickets:
-   *  - #2
-   *
-   * @author Martin Giffy D'Souza
-   * @created 28-Dec-2015
-   * @param p_filename Filename
-   * @param p_mime_type mime-type of file. If null will be resolved via p_filename
-   * @param p_content_disposition inline or attachment
-   * @param p_blob File to be downloaded
-   */
-  procedure download_file(
-    p_filename in varchar2,
-    p_mime_type in varchar2 default null,
-    p_content_disposition in varchar2 default oos_util_apex.gc_content_disposition_attach,
-    p_blob in blob)
-  as
-
-    l_mime_type varchar2(255);
-    l_blob blob := p_blob; -- Need to use l_blob since download is an in out for wpg_docload
-
-  begin
-
-    l_mime_type := coalesce(p_mime_type,oos_util_web.get_mime_type(p_filename => p_filename));
-
-    -- Set Header
-    owa_util.mime_header(
-      ccontent_type => l_mime_type,
-      bclose_header => false );
-
-    htp.p('Content-length: ' || dbms_lob.getlength(p_blob));
-
-    htp.p(
-      oos_util_string.sprintf(
-        'Content-Disposition: %s; filename="%s"',
-        p_content_disposition,
-        p_filename));
-
-    owa_util.http_header_close;
-
-    -- download the BLOB
-    wpg_docload.download_file(p_blob => l_blob);
-
-    apex_application.stop_apex_engine;
-  end download_file;
-
-
-  /**
-   * Download clob file
-   *
-   * Notes:
-   *  - See download_file (blob) for full documentation
-   *
-   * Related Tickets:
-   *  - #2
-   *
-   * @author Martin Giffy D'Souza
-   * @created 28-Dec-2015
-   * @param p_filename
-   * @param p_mime_type
-   * @param p_content_disposition
-   * @param p_clob
-   */
-  procedure download_file(
-    p_filename in varchar2,
-    p_mime_type in varchar2 default null,
-    p_content_disposition in varchar2 default oos_util_apex.gc_content_disposition_attach,
-    p_clob in clob)
-  as
-    l_blob blob;
-  begin
-
-    l_blob := oos_util_lob.clob2blob(p_clob);
-
-    download_file(
-      p_filename => p_filename,
-      p_mime_type => p_mime_type,
-      p_content_disposition => p_content_disposition,
-      p_blob => l_blob);
-  end download_file;
-
-
   /**
    * Returns true/false if APEX developer is enable
-   * Supports both APEX 4 and 5 formats
+   * Supports both APEX 4 and 5
    *
-   * Notes:
-   *  -
+   * Can be used in APEX to declaratively determine if in development mode.
    *
-   * Related Tickets:
-   *  - #25
+   * @example
+   * begin
+   *   if oos_util_apex.is_developer then
+   *     dbms_output.put_line('Developer mode');
+   *   else
+   *     dbms_output.put_line('Non-Dev mode');
+   *   end if;
+   * end;
+   *
+   * @issue 25
    *
    * @author Martin Giffy D'Souza
    * @created 29-Dec-2015
-   * @return true/false
+   * @return boolan True: Developer has an active session in Application Builder
    */
   function is_developer
     return boolean
@@ -116,14 +33,21 @@ as
     end if;
   end is_developer;
 
+
   /**
    * Returns Y/N if APEX developer is enable
+   * See `is_developer` for details
    *
-   * Notes:
-   *  -
+   * @example
+   * begin
+   *   if oos_util_apex.is_developer_yn = 'Y' then
+   *     dbms_output.put_line('Developer mode');
+   *   else
+   *     dbms_output.put_line('Non-Dev mode');
+   *   end if;
+   * end;
    *
-   * Related Tickets:
-   *  - #25
+   * @issue #25
    *
    * @author Martin Giffy D'Souza
    * @created 29-Dec-2015
@@ -145,13 +69,19 @@ as
 
 
   /**
-   * Checks if session is still active
+   * Checks if APEX session is still active/valid
    *
-   * Notes:
-   *  -
+   * @example
    *
-   * Related Tickets:
-   *  - #9
+   * begin
+   *   if oos_util_apex.is_session_valid(p_session_id => :app_session) then
+   *     dbms_output.put_line('Session is active');
+   *   else
+   *     dbms_output.put_line('Session is inactive');
+   *   end if;
+   * end;
+   *
+   * @issue #9
    *
    * @author Martin Giffy D'Souza
    * @created 29-Dec-2015
@@ -185,11 +115,17 @@ as
   /**
    * Checks if session is still active
    *
-   * Notes:
-   *  -
+   * @example
    *
-   * Related Tickets:
-   *  - #9
+   * begin
+   *   if oos_util_apex.is_session_valid_yn(p_session_id => :app_session) = 'Y' then
+   *     dbms_output.put_line('Session is active');
+   *   else
+   *     dbms_output.put_line('Session is inactive');
+   *   end if;
+   * end;
+   *
+   * @issue 9
    *
    * @author Martin Giffy D'Souza
    * @created 29-Dec-2015
@@ -217,13 +153,26 @@ as
    * Creates a new APEX session.
    * Useful when testing APEX functionality in PL/SQL or using apex_mail etc
    *
+   * Can only create one per Oracle session. To connect to a different APEX session, reconnect the Oracle session
+   *
+   *
    * Notes:
    *  - Content taken from:
    *    - http://www.talkapex.com/2012/08/how-to-create-apex-session-in-plsql.html
    *    - http://apextips.blogspot.com.au/2014/10/debugging-parameterised-views-outside.html
    *
-   * Related Tickets:
-   *  - #7
+   * @example
+   *
+   * begin
+   *   oos_util_apex.create_session(
+   *     p_app_id => :app_id,
+   *     p_user_name => :app_user,
+   *     p_page_id => :app_page_id);
+   *   );
+   * end;
+   *
+   * @issue #7
+   * @issue #49 ensure page and user exist
    *
    * @author Martin Giffy D'Souza
    * @created 29-Dec-2015
@@ -239,20 +188,22 @@ as
     p_session_id in apex_workspace_sessions.apex_session_id%type default null)
   as
     l_workspace_id apex_applications.workspace_id%TYPE;
-    l_cgivar_name owa.vc_arr;
-    l_cgivar_val owa.vc_arr;
+    l_cgivar_name sys.owa.vc_arr;
+    l_cgivar_val sys.owa.vc_arr;
 
     l_page_id apex_application_pages.page_id%type := p_page_id;
     l_home_link apex_applications.home_link%type;
     l_url_arr apex_application_global.vc_arr2;
+
+    l_count pls_integer;
   begin
 
-    htp.init;
+    sys.htp.init;
 
     l_cgivar_name(1) := 'REQUEST_PROTOCOL';
     l_cgivar_val(1) := 'HTTP';
 
-    owa.init_cgi_env(
+    sys.owa.init_cgi_env(
       num_params => 1,
       param_name => l_cgivar_name,
       param_val => l_cgivar_val );
@@ -286,6 +237,17 @@ as
 
     end if; -- l_page_id is null
 
+    -- #49 Ensure that page exists
+    select count(1)
+    into l_count
+    from apex_application_pages aap
+    where 1=1
+      and aap.application_id = p_app_id
+      and aap.page_id = l_page_id
+      and l_page_id is not null;
+
+    oos_util.assert(l_count = 1, 'Page must exist in the application');
+
     apex_application.g_instance := 1;
     apex_application.g_flow_id := p_app_id;
     apex_application.g_flow_step_id := l_page_id;
@@ -297,25 +259,38 @@ as
 
     -- Rejoin session
     if p_session_id is not null then
-      apex_custom_auth.set_session_id(p_session_id => p_session_id);
+      -- This will only set the session but doesn't register the items
+      -- apex_custom_auth.set_session_id(p_session_id => p_session_id);
+      -- #42 Seems a second login is required to fully join session
+      apex_custom_auth.post_login(
+        p_uname => p_user_name,
+        p_session_id => p_session_id);
     end if;
-
 
   end create_session;
 
 
   /**
-   * Reinitializes APEX session
+   * Join an existing APEX session
    *
    * Notes:
-   *  - v('P1_X') won't work. Use apex_util.get_session_state('P1_X') instead
+   *  - `v('P1_X')` won't work. Use `apex_util.get_session_state('P1_X')` instead
    *
-   * Related Tickets:
-   *  - #7
+   *
+   * @example
+   *
+   * begin
+   *   oos_util_apex.join_session(
+   *     p_session_id => :app_session,
+   *     p_app_id => :app_id
+   *   );
+   * end;
+   *
+   * @issue #7
    *
    * @author Martin Giffy D'Souza
    * @created 29-Dec-2015
-   * @param p_session_id
+   * @param p_session_id The session you want to join. Must be an existing active session.
    * @param p_app_id Use if multiple applications are linked to the same session. If null, last used application will be used.
    */
   procedure join_session(
@@ -334,10 +309,8 @@ as
       from (
         select application_id, row_number() over (order by view_date desc) rn
         from apex_workspace_activity_log
-        where 1=1
-          and apex_session_id = p_session_id)
-      where 1=1
-        and rn = 1;
+        where apex_session_id = p_session_id)
+      where rn = 1;
     end if;
 
     oos_util.assert(l_app_id is not null, 'Can not find matching app_id for session: ' || p_session_id);
@@ -365,8 +338,13 @@ as
    *  - Excludes inputs that users shouldn't modify and password fields
    *    - Ex: select list, hidden values, files
    *
-   * Related Tickets:
-   *  - #24
+   * @example
+   *
+   * begin
+   *   oos_util_apex.trim_page_items(p_page_id => :app_page_id);
+   * end;
+   *
+   * @issue 24
    *
    * @author Martin Giffy D'Souza
    * @created 31-Dec-2015
@@ -414,6 +392,69 @@ as
     end loop;
 
   end trim_page_items;
+
+
+  /**
+   * Returns true/false if page item was rendered
+   *
+   * Notes:
+   *  - This should only run on a page submit process otherwise it won't work. An error is raised otherwise
+   *
+   * @example
+   * begin
+   *   if oos_util_apex.is_page_item_rendered(p_item_name => 'P1_EMPNO') then
+   *     dbms_output.put_line('P1_EMPNO rendered');
+   *   else
+   *     dbms_output.put_line('P1_EMPNO was not rendered');
+   *   end if;
+   * end;
+   *
+   * @issue #39
+   *
+   * @author Daniel Hochleitner
+   * @created 06-Mar-2016
+   * @return true/false
+   */
+  function is_page_item_rendered(
+    p_item_name in apex_application_page_items.item_name%type)
+    return boolean
+  as
+    l_item_id apex_application_page_items.item_id%type;
+    l_return boolean := false;
+  begin
+
+    -- Ensure that this is only done on page submit (otherwise it doesn't make sense)
+    oos_util.assert(
+      sys.owa_util.get_cgi_env('PATH_INFO') = '/wwv_flow.accept',
+      lower($$plsql_unit) || '.is_page_item_rendered can only be run on a page submit process');
+
+    select item_id
+    into l_item_id
+    from apex_application_page_items
+    where 1=1
+      and application_id = apex_application.g_flow_id
+      and page_id = apex_application.g_flow_step_id
+      and item_name = upper(p_item_name);
+
+    -- If a page item is rendered the internal id is stored in a hidden field
+    -- called p_arg_names. During submit the values are stored into the
+    -- g_arg_names array by the WWV_Flow.accept procedure.
+    -- By checking for existence of the page item id in the array, we are able
+    -- to determine if APEX has rendered the item as "Saves state".
+    -- Note: A item which is normally enterable but which is rendered
+    --       "Read Only" is also considered rendered, because it still saves state
+
+    if apex_application.g_arg_names.count > 0 then
+      for i in 1 .. apex_application.g_arg_names.count loop
+        if apex_application.g_arg_names(i) = l_item_id then
+          l_return := true;
+          exit;
+        end if;
+      end loop;
+    end if;
+
+    return l_return;
+  end is_page_item_rendered;
 
 end oos_util_apex;
 /

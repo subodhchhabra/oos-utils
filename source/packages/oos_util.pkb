@@ -2,26 +2,21 @@ create or replace package body oos_util
 as
   -- CONSTANTS
 
-  gc_assert_error_number pls_integer := -20000;
+  gc_assert_error_number constant pls_integer := -20000;
 
 
   -- ******** PRIVATE ********
 
-  /**
+  /*!
    * Internal logging procedure.
    * Requires Logger to be installed only while developing.
    * -- TODO mdsouza: conditional compilation notes
    *
-   * Notes:
-   *  -
-   *
-   * Related Tickets:
-   *  -
    *
    * @author Martin D'Souza
    * @created 17-Aug-2015
    * @param p_message Item to log
-   * @return TODO
+   * @param p_scope Logger scope
    */
   procedure log(
     p_text in varchar2,
@@ -42,11 +37,24 @@ as
    * Validates assertion.
    * Will raise an application error if assertion is false
    *
-   * Notes:
+   * @example
    *
+   * oos_util.assert(1=2, 'this assertion did not pass');
    *
-   * Related Tickets:
-   *  - #19
+   * -- Results in
+   *
+   * Error starting at line : 1 in command -
+   * exec oos_util.assert(1=2, 'this assertion did not pass')
+   * Error report -
+   * ORA-06550: line 1, column 7:
+   * PLS-00306: wrong number or types of arguments in call to 'ASSERT'
+   * ORA-06550: line 1, column 7:
+   * PL/SQL: Statement ignored
+   * 06550. 00000 -  "line %s, column %s:\n%s"
+   * *Cause:    Usually a PL/SQL compilation error.
+   * *Action:
+
+   * @issue #19
    *
    * @author Martin D'Souza
    * @created 05-Sep-2015
@@ -69,12 +77,23 @@ as
    *
    * Notes:
    *  - It is recommended that you use Oracle's lock procedures: http://psoug.org/reference/sleep.html
-   *  - However in some instances you may not have access to them
+   *    - In instances where you do not have access use this sleep method instead
    *  - This implementation may tie up CPU so only use for development purposes
+   *  - This is a custom implementation of sleep and as a result the times are not 100% accurate
    *  - If calling in SQLDeveloper may get "IO Error: Socket read timed out". This is a JDBC driver setting, not a bug in this code.
    *
-   * Related Tickets:
-   *  - #13
+   * @issue #13
+   *
+   * @example
+   * begin
+   *   dbms_output.put_line(oos_util_string.to_char(sysdate));
+   *   oos_util.sleep(5);
+   *   dbms_output.put_line(oos_util_string.to_char(sysdate));
+   * end;
+   * /
+   *
+   * 26-APR-2016 14:29:02
+   * 26-APR-2016 14:29:07
    *
    * @author Martin Giffy D'Souza
    * @created 31-Dec-2015

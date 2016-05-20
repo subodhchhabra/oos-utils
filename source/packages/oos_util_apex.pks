@@ -1,20 +1,5 @@
 create or replace package oos_util_apex
 as
-  -- CONSTANTS
-  gc_content_disposition_inline constant varchar2(20) := 'inline';
-  gc_content_disposition_attach constant varchar2(20) := 'attachment';
-
-  procedure download_file(
-    p_filename in varchar2,
-    p_mime_type in varchar2 default null,
-    p_content_disposition in varchar2 default oos_util_apex.gc_content_disposition_attach,
-    p_blob in blob);
-
-  procedure download_file(
-    p_filename in varchar2,
-    p_mime_type in varchar2 default null,
-    p_content_disposition in varchar2 default oos_util_apex.gc_content_disposition_attach,
-    p_clob in clob);
 
   function is_developer
     return boolean;
@@ -42,6 +27,10 @@ as
 
   procedure trim_page_items(
     p_page_id in apex_application_pages.page_id%type default apex_application.g_flow_step_id);
+
+  function is_page_item_rendered(
+    p_item_name in apex_application_page_items.item_name%type)
+    return boolean;
 
 end oos_util_apex;
 /
